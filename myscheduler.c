@@ -6,8 +6,6 @@
 //  Student1:   STUDENT-NUMBER1   NAME-1
 //  Student2:   STUDENT-NUMBER2   NAME-2
 
-// hi nye
-
 //  myscheduler (v1.0)
 //  Compile with:  cc -std=c11 -Wall -Werror -o myscheduler myscheduler.c
 
