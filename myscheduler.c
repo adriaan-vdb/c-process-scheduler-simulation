@@ -76,3 +76,6 @@ int main(int argc, char *argv[])
 }
 
 //  vim: ts=8 sw=4
+
+// Solution draft:
+
