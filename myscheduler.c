@@ -44,6 +44,31 @@ struct Device
 
 struct Device devices[MAX_DEVICES];
 
+struct Device {
+    char devicename[20];
+    int readspeed;
+    int writespeed;
+};
+
+enum ProcessState {
+    READY,
+    RUNNING,
+    BLOCKED_IO,
+    BLOCKED_SLEEP,
+    BLOCKED_WAIT,
+    EXITED
+};
+
+struct Process {
+    int pid;                   // Process ID
+    enum ProcessState state;   // Current state of the process
+    int remainingTimeQuantum;  // Remaining time quantum if in RUNNING state
+    int elapsedTime;           // Total elapsed time in microseconds
+    // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
+    // ...
+    struct Process *next;      // Pointer to the next process in the queue
+};
+
 void read_sysconfig(char argv0[], char filename[])
 {
     FILE *sysconfig = fopen(filename, "r");
