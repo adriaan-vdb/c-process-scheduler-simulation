@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 //  you may need other standard header files
 
 //  CITS2002 Project 1 2023
@@ -95,24 +96,25 @@ void read_sysconfig(char argv0[], char filename[])
             int i = 6;                                    // Keeps track of what character is being inspected
             for (int feature = 0; feature < 3; feature++) // Keeps track of what is being recorded (0 = name, 1 = readspeed, 2 = writespeed)
             {
-                char value[20];
+                char value[20] = {'\0'};
                 while (buffer[i] == '\t' || buffer[i] == ' ')
                 {
                     i++;
                 }
-                while (buffer[i] != '\t' && buffer[i] != ' ' && i < 256)
+                while (buffer[i] != '\t' && buffer[i] != ' ')
                 {
                     if (feature != 0 && buffer[i] == 'B') // Terminate character recording before "Bps" - so string is a number
                     {
+                        i += 3; // Set character index to after "Bps"
                         break;
                     }
-                    strncat(value, &buffer[i], 1);
+                    sprintf(value, "%s%c", value, buffer[i]);
                     i++;
                 }
                 switch (feature)
                 {
                 case 0:
-                    strncpy(devices[device].name, value, 20);
+                    sprintf(devices[device].name, "%s", value);
                 case 1:
                     devices[device].readspeed = atoi(value);
                 case 2:
@@ -123,7 +125,7 @@ void read_sysconfig(char argv0[], char filename[])
         }
         else
         {
-            char value[20];
+            char value[20] = {'\0'};
             int i = 11;
             while (buffer[i] == '\t' || buffer[i] == ' ')
             {
@@ -135,7 +137,7 @@ void read_sysconfig(char argv0[], char filename[])
                 {
                     break;
                 }
-                strncat(value, &buffer[i], 1);
+                sprintf(value, "%s%c", value, buffer[i]);
                 i++;
             }
             timequantum = atoi(value);
@@ -144,9 +146,11 @@ void read_sysconfig(char argv0[], char filename[])
     }
     // for (int i = 0; i < 4; i++)
     // {
-    //     printf("%s: %d, %d", devices[i].name, devices[i].readspeed, devices[i].writespeed);
+    //     printf("%s ", devices[i].name);
+    //     printf("%d ", devices[i].readspeed);
+    //     printf("%d \n", devices[i].writespeed);
     // }
-    // printf("timequantum: %d \n", timequantum);
+    // printf("%d", timequantum);
 }
 
 void read_commands(char argv0[], char filename[])
