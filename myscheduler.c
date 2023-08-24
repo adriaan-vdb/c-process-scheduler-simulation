@@ -45,12 +45,6 @@ struct Device
 
 struct Device devices[MAX_DEVICES];
 
-struct Device {
-    char devicename[20];
-    int readspeed;
-    int writespeed;
-};
-
 enum ProcessState {
     READY,
     RUNNING,
