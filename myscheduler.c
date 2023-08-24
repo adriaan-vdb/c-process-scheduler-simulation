@@ -33,12 +33,14 @@
 #define TIME_CORE_STATE_TRANSITIONS 10
 #define TIME_ACQUIRE_BUS 20
 
+#define MAX_LINE_LENGTH 256
+
 //  ----------------------------------------------------------------------
 int timequantum = DEFAULT_TIME_QUANTUM;
 
 struct Device
 {
-    char name[20];
+    char name[MAX_DEVICE_NAME];
     int readspeed;
     int writespeed;
 };
@@ -54,8 +56,8 @@ void read_sysconfig(char argv0[], char filename[])
         exit(EXIT_FAILURE);
     }
     int device = 0;
-    char buffer[256];
-    while (fgets(buffer, 256, sysconfig))
+    char buffer[MAX_LINE_LENGTH];
+    while (fgets(buffer, MAX_LINE_LENGTH, sysconfig))
     {
         // Check if reading a comment
         if ((buffer[0] == '#'))
@@ -68,10 +70,10 @@ void read_sysconfig(char argv0[], char filename[])
         }
         if (device < MAX_DEVICES)
         {
-            int i = 6;                                    // Keeps track of what character is being inspected
+            int i = strlen("device");                     // Sets character index to whitespace after "device" title
             for (int feature = 0; feature < 3; feature++) // Keeps track of what is being recorded (0 = name, 1 = readspeed, 2 = writespeed)
             {
-                char value[20] = {'\0'};
+                char value[MAX_DEVICE_NAME] = {'\0'};
                 while (buffer[i] == '\t' || buffer[i] == ' ')
                 {
                     i++;
@@ -100,15 +102,15 @@ void read_sysconfig(char argv0[], char filename[])
         }
         else
         {
-            char value[20] = {'\0'};
-            int i = 11;
+            char value[MAX_DEVICE_NAME] = {'\0'};
+            int i = strlen("timequantum"); // Sets character index to whitespace after "timequantum" title
             while (buffer[i] == '\t' || buffer[i] == ' ')
             {
                 i++;
             }
-            while (buffer[i] != '\t' && buffer[i] != ' ' && i < 256)
+            while (buffer[i] != '\t' && buffer[i] != ' ' && i < MAX_LINE_LENGTH)
             {
-                if (buffer[i] == 'u')
+                if (buffer[i] == 'u') // Terminates character recording before "usec" - so string is a number
                 {
                     break;
                 }
