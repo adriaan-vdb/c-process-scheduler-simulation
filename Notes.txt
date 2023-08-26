@@ -1,0 +1,14 @@
+--> Questions:
+1. Do we need Fork to create new processes when each command is called?
+2. 
+
+
+
+
+--> Notes:
+1. I reckon we share a onenote page so we can plan our system on "Whiteboard"
+
+
+
+
+

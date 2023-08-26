@@ -22,6 +22,8 @@
 #define MAX_SYSCALLS_PER_PROCESS 40
 #define MAX_RUNNING_PROCESSES 50
 
+#define MAX_LINE_LENGTH 256
+
 //  NOTE THAT DEVICE DATA-TRANSFER-RATES ARE MEASURED IN BYTES/SECOND,
 //  THAT ALL TIMES ARE MEASURED IN MICROSECONDS (usecs),
 //  AND THAT THE TOTAL-PROCESS-COMPLETION-TIME WILL NOT EXCEED 2000 SECONDS
@@ -47,8 +49,48 @@ struct Device
 
 struct Device devices[MAX_DEVICES];
 
+enum SystemCallType
+{
+    SPAWN,
+    READ,
+    WRITE,
+    SLEEP,
+    WAIT,
+    EXIT,
+};
+
+struct SystemCall
+{
+    int elapsed_time; // Elapsed time in microseconds
+    int operation_length;
+    enum SystemCallType name;
+};
+
+enum ProcessState
+{
+    READY,
+    RUNNING,
+    BLOCKED_IO,
+    BLOCKED_SLEEP,
+    BLOCKED_WAIT,
+    EXITED
+};
+
+struct Process
+{
+    int pid;                  // Process ID
+    enum ProcessState state;  // Current state of the process
+    int remainingTimeQuantum; // Remaining time quantum if in RUNNING state
+    int elapsedTime;          // Total elapsed time in microseconds
+    // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
+    // ...
+    struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
+    struct Process *next; // Pointer to the next process in the queue
+};
+
 void read_sysconfig(char argv0[], char filename[])
 {
+    struct Device tempdevices[MAX_DEVICES]; // Temporarily stores unordered devices, loaded in from sysconfig
     FILE *sysconfig = fopen(filename, "r");
     // Check if file failed to read
     if (sysconfig == NULL)
@@ -60,7 +102,7 @@ void read_sysconfig(char argv0[], char filename[])
     while (fgets(buffer, MAX_LINE_LENGTH, sysconfig))
     {
         // Check if reading a comment
-        if ((buffer[0] == '#'))
+        if (buffer[0] == '#')
         {
             if (device > 0)
             {
@@ -91,11 +133,11 @@ void read_sysconfig(char argv0[], char filename[])
                 switch (feature)
                 {
                 case 0:
-                    sprintf(devices[device].name, "%s", value);
+                    sprintf(tempdevices[device].name, "%s", value);
                 case 1:
-                    devices[device].readspeed = atoi(value);
+                    tempdevices[device].readspeed = atoi(value);
                 case 2:
-                    devices[device].writespeed = atoi(value);
+                    tempdevices[device].writespeed = atoi(value);
                 }
             }
             device++;
@@ -121,6 +163,27 @@ void read_sysconfig(char argv0[], char filename[])
         }
         buffer[0] = '\0';
     }
+    // Sort devices in ascending order of read speed
+    int minreadspeed = 0; // Keeps track of index of device with current minimum read speed
+    for (int i = 0; i < 4; i++)
+    {
+        minreadspeed = 0;
+        for (int j = 0; j < 4; j++)
+        {
+            while (tempdevices[minreadspeed].readspeed == -1)
+            {
+                minreadspeed++;
+                j++;
+            }
+            if (tempdevices[j].readspeed < tempdevices[minreadspeed].readspeed && tempdevices[j].readspeed != -1)
+            {
+                minreadspeed = j;
+            }
+        }
+        devices[i] = tempdevices[minreadspeed];
+        tempdevices[minreadspeed].readspeed = -1;
+    }
+
     // for (int i = 0; i < 4; i++)
     // {
     //     printf("%s ", devices[i].name);
@@ -130,10 +193,115 @@ void read_sysconfig(char argv0[], char filename[])
     // printf("%d", timequantum);
 }
 
-void read_commands(char argv0[], char filename[])
+int stripDigit(char *input_string)
 {
+    int digits = 0;
+    for (int i = 0; input_string[i] != '\0'; i++)
+    {
+        if (isdigit(input_string[i]))
+        {
+            digits = digits * 10 + (input_string[i] - '0');
+        }
+    }
+    return digits;
 }
 
+void read_commands(char argv0[], char filename[])
+{
+
+    printf("Commencing... ");
+    FILE *commands = fopen(filename, "r");
+    // Check if file failed to read
+    if (commands == NULL)
+    {
+        exit(EXIT_FAILURE);
+    }
+
+    // char buffer[MAX_LINE_LENGTH];
+    // char processName[MAX_COMMAND_NAME];
+    // struct Process myProcesses[MAX_RUNNING_PROCESSES];
+    // int numProcesses = 0;
+    // int numSystemCalls = 0;
+
+    char titles[MAX_COMMAND_NAME][100];
+
+    char *data_arrays[MAX_COMMAND_NAME][MAX_SYSCALLS_PER_PROCESS][100];
+
+    FILE *file = fopen("input.txt", "r");
+    if (file == NULL)
+    {
+        printf("Error opening file.\n");
+    }
+
+    char lines[100][100];
+    int line_count = 0;
+
+    char line[100];
+    while (fgets(line, sizeof(line), file))
+    {
+        line[strcspn(line, "\n")] = '\0';
+        strcpy(lines[line_count], line);
+        line_count++;
+    }
+
+    int title_index = -1;
+    int process_index = 0;
+    int titleNext = 0;
+    for (int i = 0; i < line_count; i++)
+    {
+        strcpy(line, lines[i]);
+        if (strcmp(line, "#") == 0)
+        {
+            titleNext = 1;
+            continue;
+        }
+        else if (titleNext == 1 && line[0] != ' ')
+        {
+            title_index++;
+            strcpy(titles[title_index], line);
+            titleNext = 0;
+            process_index = 0;
+        }
+        else
+        {
+            char *token = strtok(line, " ");
+            int word_count = 0;
+            while (token != NULL)
+            {
+                strcpy(data_arrays[title_index][process_index][word_count], token);
+                token = strtok(NULL, " ");
+                word_count++;
+            }
+            // data_arrays[title_index][process_index][0] = stripDigit(data_arrays[title_index][process_index][0]);
+            process_index++;
+        }
+    }
+
+    fclose(file);
+
+    printf("titles: ");
+    for (int i = 0; i <= title_index; i++)
+    {
+        printf("%c ", titles[i][0]);
+    }
+    printf("\n");
+
+    printf("data_arrays:\n");
+    for (int i = 0; i <= title_index; i++)
+    {
+        for (int j = 0; j < process_index; j++)
+        {
+            for (int k = 0; strcmp(data_arrays[i][j][k], "") != 0; k++)
+            {
+                printf("%s ", data_arrays[i][j][k]);
+                free(data_arrays[i][j][k]); // ??
+            }
+            printf("\n");
+        }
+    }
+}
+
+// systemCalls[0].name = SLEEP;
 //  ----------------------------------------------------------------------
 
 void execute_commands(void)
@@ -151,7 +319,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    //  READ THE SYSTEM CONFIGURATION FILE
+    // READ THE SYSTEM CONFIGURATION FILE
     read_sysconfig(argv[0], argv[1]);
 
     //  READ THE COMMAND FILE
@@ -167,3 +335,5 @@ int main(int argc, char *argv[])
 }
 
 //  vim: ts=8 sw=4
+
+// Solution draft:
