@@ -22,6 +22,8 @@
 #define MAX_SYSCALLS_PER_PROCESS 40
 #define MAX_RUNNING_PROCESSES 50
 
+#define MAX_LINE_LENGTH 256
+
 //  NOTE THAT DEVICE DATA-TRANSFER-RATES ARE MEASURED IN BYTES/SECOND,
 //  THAT ALL TIMES ARE MEASURED IN MICROSECONDS (usecs),
 //  AND THAT THE TOTAL-PROCESS-COMPLETION-TIME WILL NOT EXCEED 2000 SECONDS
@@ -45,6 +47,21 @@ struct Device
 
 struct Device devices[MAX_DEVICES];
 
+enum SystemCallType {
+    SPAWN,
+    READ,
+    WRITE,
+    SLEEP,
+    WAIT,
+    EXIT,
+};
+
+struct SystemCall {
+    int elapsed_time;  // Elapsed time in microseconds
+    int operation_length;
+    enum SystemCallType name;
+};
+
 enum ProcessState {
     READY,
     RUNNING,
@@ -55,14 +72,16 @@ enum ProcessState {
 };
 
 struct Process {
-    int pid;                   // Process ID
+    char pid[MAX_COMMAND_NAME];                   // Process ID
     enum ProcessState state;   // Current state of the process
     int remainingTimeQuantum;  // Remaining time quantum if in RUNNING state
     int elapsedTime;           // Total elapsed time in microseconds
     // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
     // ...
+    struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
     struct Process *next;      // Pointer to the next process in the queue
 };
+
 
 void read_sysconfig(char argv0[], char filename[])
 {
@@ -149,8 +168,112 @@ void read_sysconfig(char argv0[], char filename[])
 
 void read_commands(char argv0[], char filename[])
 {
+    FILE *commands = fopen(filename, "r");
+    // Check if file failed to read
+    if (commands == NULL)
+    {
+        exit(EXIT_FAILURE);
+    }
+
+    char buffer[MAX_LINE_LENGTH];
+    char processName[MAX_COMMAND_NAME];
+    struct Process myProcesses[MAX_RUNNING_PROCESSES];
+    int numProcesses = 0;
+    int numSystemCalls = 0;
+
+    while (fgets(buffer, MAX_LINE_LENGTH, commands))
+    {
+        // Process name found
+        // if (buffer[0] == ' ' || buffer[0] == '/t'){
+        //     break;
+        // }
+        if ((buffer[0] == '#'))
+        {
+            continue;
+        }
+
+        sprintf(myProcesses[ProcessNum].pid, "%s", buffer);
+
+
+
+
+            // Process name found
+            if (numSystemCalls > 0) {
+                // Print the previously collected system calls
+                printf("Process: %s\n", processName);
+                for (int i = 0; i < numSystemCalls; i++) {
+                    printf("Elapsed Time: %d, Operation Length: %d, Name: %d\n",
+                           processes[numProcesses - 1].systemCalls[i].elapsed_time,
+                           processes[numProcesses - 1].systemCalls[i].operation_length,
+                           processes[numProcesses - 1].systemCalls[i].name);
+                }
+                printf("\n");
+                numSystemCalls = 0;
+            }
+
+
+
+
+
+
+
+        int i = 0;
+        while (buffer[i] == '\t' || buffer[i] == ' ')
+        {
+            i++;
+        }
+        while (buffer[i] != '\t' && buffer[i] != ' ' && i < 256)
+        {
+            if (buffer[i] == 'u') 
+            {
+                break;
+            }
+            strncat(value, &buffer[i], 1);
+            i++;
+        }
+
+        ProcessNum++;
+
+
+
+        // MyProcesses[i].pid = "name";
+        // process[i].systemcalls[j].name = write;  
+        // systemCalls[0].name = SLEEP;
+
+        int i = 0;
+        while (buffer[i] == '\t' || buffer[i] == ' ')
+        {
+            i++;
+        }
+        while (buffer[i] != '\t' && buffer[i] != ' ' && i < 256)
+        {
+            if (buffer[i] == 'u') 
+            {
+                break;
+            }
+            strncat(value, &buffer[i], 1);
+            i++;
+        }
+        switch (feature)
+        {
+        case 0:
+            strncpy(devices[device].name, value, 20);
+        case 1:
+            devices[device].readspeed = atoi(value);
+        case 2:
+            devices[device].writespeed = atoi(value);
+            }
+        }
+        device++;
+    }
+    else
+    {
+        ..;
+    }
+    buffer[0] = '\0';
 }
 
+// systemCalls[0].name = SLEEP;
 //  ----------------------------------------------------------------------
 
 void execute_commands(void)
@@ -186,4 +309,5 @@ int main(int argc, char *argv[])
 //  vim: ts=8 sw=4
 
 // Solution draft:
+
 

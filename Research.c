@@ -20,7 +20,7 @@ struct Process {
     int elapsedTime;           // Total elapsed time in microseconds
     // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
     // ...
-    // struct Process *next;      // Pointer to the next process in the queue
+    //struct Process *next;      // Pointer to the next process in the queue
 };
 
 // Define a data structure for the sysconfig
