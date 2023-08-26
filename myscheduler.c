@@ -36,16 +36,8 @@
 //  ----------------------------------------------------------------------
 int timequantum = DEFAULT_TIME_QUANTUM;
 
-struct Device
+enum ProcessState
 {
-    char name[20];
-    int readspeed;
-    int writespeed;
-};
-
-struct Device devices[MAX_DEVICES];
-
-enum ProcessState {
     READY,
     RUNNING,
     BLOCKED_IO,
@@ -54,18 +46,30 @@ enum ProcessState {
     EXITED
 };
 
-struct Process {
-    int pid;                   // Process ID
-    enum ProcessState state;   // Current state of the process
-    int remainingTimeQuantum;  // Remaining time quantum if in RUNNING state
-    int elapsedTime;           // Total elapsed time in microseconds
+struct Process
+{
+    int pid;                  // Process ID
+    enum ProcessState state;  // Current state of the process
+    int remainingTimeQuantum; // Remaining time quantum if in RUNNING state
+    int elapsedTime;          // Total elapsed time in microseconds
     // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
     // ...
-    struct Process *next;      // Pointer to the next process in the queue
+    struct Process *next; // Pointer to the next process in the queue
 };
+
+struct Device
+{
+    char name[20];
+    int readspeed;
+    int writespeed;
+    struct Process queue[MAX_RUNNING_PROCESSES];
+};
+
+struct Device devices[MAX_DEVICES];
 
 void read_sysconfig(char argv0[], char filename[])
 {
+    struct Device tempdevices[MAX_DEVICES]; // Temporarily stores unordered devices, loaded in from sysconfig
     FILE *sysconfig = fopen(filename, "r");
     // Check if file failed to read
     if (sysconfig == NULL)
@@ -108,11 +112,11 @@ void read_sysconfig(char argv0[], char filename[])
                 switch (feature)
                 {
                 case 0:
-                    sprintf(devices[device].name, "%s", value);
+                    sprintf(tempdevices[device].name, "%s", value);
                 case 1:
-                    devices[device].readspeed = atoi(value);
+                    tempdevices[device].readspeed = atoi(value);
                 case 2:
-                    devices[device].writespeed = atoi(value);
+                    tempdevices[device].writespeed = atoi(value);
                 }
             }
             device++;
@@ -138,6 +142,27 @@ void read_sysconfig(char argv0[], char filename[])
         }
         buffer[0] = '\0';
     }
+    // Sort devices in ascending order of read speed
+    int minreadspeed = 0; // Keeps track of index of device with current minimum read speed
+    for (int i = 0; i < 4; i++)
+    {
+        minreadspeed = 0;
+        for (int j = 0; j < 4; j++)
+        {
+            while (tempdevices[minreadspeed].readspeed == -1)
+            {
+                minreadspeed++;
+                j++;
+            }
+            if (tempdevices[j].readspeed < tempdevices[minreadspeed].readspeed && tempdevices[j].readspeed != -1)
+            {
+                minreadspeed = j;
+            }
+        }
+        devices[i] = tempdevices[minreadspeed];
+        tempdevices[minreadspeed].readspeed = -1;
+    }
+
     // for (int i = 0; i < 4; i++)
     // {
     //     printf("%s ", devices[i].name);
@@ -186,4 +211,3 @@ int main(int argc, char *argv[])
 //  vim: ts=8 sw=4
 
 // Solution draft:
-
