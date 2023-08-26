@@ -47,7 +47,8 @@ struct Device
 
 struct Device devices[MAX_DEVICES];
 
-enum SystemCallType {
+enum SystemCallType
+{
     SPAWN,
     READ,
     WRITE,
@@ -56,13 +57,15 @@ enum SystemCallType {
     EXIT,
 };
 
-struct SystemCall {
-    int elapsed_time;  // Elapsed time in microseconds
+struct SystemCall
+{
+    int elapsed_time; // Elapsed time in microseconds
     int operation_length;
     enum SystemCallType name;
 };
 
-enum ProcessState {
+enum ProcessState
+{
     READY,
     RUNNING,
     BLOCKED_IO,
@@ -80,10 +83,8 @@ struct Process
     // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
     // ...
     struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
-    struct Process *next;      // Pointer to the next process in the queue
+    struct Process *next; // Pointer to the next process in the queue
 };
-
-struct Device devices[MAX_DEVICES];
 
 void read_sysconfig(char argv0[], char filename[])
 {
@@ -190,17 +191,18 @@ void read_sysconfig(char argv0[], char filename[])
     // printf("%d", timequantum);
 }
 
-
-int stripDigit(char* input_string) {
+int stripDigit(char *input_string)
+{
     int digits = 0;
-    for (int i = 0; input_string[i] != '\0'; i++) {
-        if (isdigit(input_string[i])) {
+    for (int i = 0; input_string[i] != '\0'; i++)
+    {
+        if (isdigit(input_string[i]))
+        {
             digits = digits * 10 + (input_string[i] - '0');
         }
     }
     return digits;
 }
-
 
 void read_commands(char argv0[], char filename[])
 {
@@ -211,7 +213,7 @@ void read_commands(char argv0[], char filename[])
     if (commands == NULL)
     {
         exit(EXIT_FAILURE);
-    } 
+    }
 
     // char buffer[MAX_LINE_LENGTH];
     // char processName[MAX_COMMAND_NAME];
@@ -223,8 +225,9 @@ void read_commands(char argv0[], char filename[])
 
     char *data_arrays[MAX_COMMAND_NAME][MAX_SYSCALLS_PER_PROCESS][100];
 
-    FILE* file = fopen("input.txt", "r");
-    if (file == NULL) {
+    FILE *file = fopen("input.txt", "r");
+    if (file == NULL)
+    {
         printf("Error opening file.\n");
     }
 
@@ -232,7 +235,8 @@ void read_commands(char argv0[], char filename[])
     int line_count = 0;
 
     char line[100];
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), file))
+    {
         line[strcspn(line, "\n")] = '\0';
         strcpy(lines[line_count], line);
         line_count++;
@@ -241,27 +245,32 @@ void read_commands(char argv0[], char filename[])
     int title_index = -1;
     int process_index = 0;
     int titleNext = 0;
-    for (int i = 0; i < line_count; i++) {
+    for (int i = 0; i < line_count; i++)
+    {
         strcpy(line, lines[i]);
-        if (strcmp(line, "#") == 0) {
+        if (strcmp(line, "#") == 0)
+        {
             titleNext = 1;
             continue;
         }
-        else if (titleNext == 1 && line[0] != ' ') {
+        else if (titleNext == 1 && line[0] != ' ')
+        {
             title_index++;
             strcpy(titles[title_index], line);
             titleNext = 0;
             process_index = 0;
         }
-        else {
-            char* token = strtok(line, " ");
+        else
+        {
+            char *token = strtok(line, " ");
             int word_count = 0;
-            while (token != NULL) {
+            while (token != NULL)
+            {
                 strcpy(data_arrays[title_index][process_index][word_count], token);
                 token = strtok(NULL, " ");
                 word_count++;
             }
-            //data_arrays[title_index][process_index][0] = stripDigit(data_arrays[title_index][process_index][0]);
+            // data_arrays[title_index][process_index][0] = stripDigit(data_arrays[title_index][process_index][0]);
             process_index++;
         }
     }
@@ -269,15 +278,19 @@ void read_commands(char argv0[], char filename[])
     fclose(file);
 
     printf("titles: ");
-    for (int i = 0; i <= title_index; i++) {
+    for (int i = 0; i <= title_index; i++)
+    {
         printf("%c ", titles[i][0]);
     }
     printf("\n");
 
     printf("data_arrays:\n");
-    for (int i = 0; i <= title_index; i++) {
-        for (int j = 0; j < process_index; j++) {
-            for (int k = 0; strcmp(data_arrays[i][j][k], "") != 0; k++) {
+    for (int i = 0; i <= title_index; i++)
+    {
+        for (int j = 0; j < process_index; j++)
+        {
+            for (int k = 0; strcmp(data_arrays[i][j][k], "") != 0; k++)
+            {
                 printf("%s ", data_arrays[i][j][k]);
                 free(data_arrays[i][j][k]); // ??
             }
@@ -285,7 +298,6 @@ void read_commands(char argv0[], char filename[])
         }
     }
 }
-
 
 // systemCalls[0].name = SLEEP;
 //  ----------------------------------------------------------------------
@@ -305,8 +317,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    //  READ THE SYSTEM CONFIGURATION FILE
-    // read_sysconfig(argv[0], argv[1]);
+    // READ THE SYSTEM CONFIGURATION FILE
+    read_sysconfig(argv[0], argv[1]);
 
     //  READ THE COMMAND FILE
     read_commands(argv[0], argv[2]);
