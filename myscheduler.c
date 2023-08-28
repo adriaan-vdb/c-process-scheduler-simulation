@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
+#include <stdbool.h>
 //  you may need other standard header files
 
 //  CITS2002 Project 1 2023
@@ -23,6 +25,7 @@
 #define MAX_RUNNING_PROCESSES 50
 
 #define MAX_LINE_LENGTH 256
+#define MAX_SYSCALL_NAME 5
 
 //  NOTE THAT DEVICE DATA-TRANSFER-RATES ARE MEASURED IN BYTES/SECOND,
 //  THAT ALL TIMES ARE MEASURED IN MICROSECONDS (usecs),
@@ -38,6 +41,8 @@
 #define MAX_LINE_LENGTH 256
 
 //  ----------------------------------------------------------------------
+char delimiters[] = " \t"; // Watches out for both space and tab characters
+
 int timequantum = DEFAULT_TIME_QUANTUM;
 
 struct Device
@@ -49,44 +54,56 @@ struct Device
 
 struct Device devices[MAX_DEVICES];
 
-enum SystemCallType
-{
-    SPAWN,
-    READ,
-    WRITE,
-    SLEEP,
-    WAIT,
-    EXIT,
-};
+// enum SystemCallType
+// {
+//     SPAWN,
+//     READ,
+//     WRITE,
+//     SLEEP,
+//     WAIT,
+//     EXIT,
+// };
 
 struct SystemCall
 {
-    int elapsed_time; // Elapsed time in microseconds
-    int operation_length;
-    enum SystemCallType name;
+    // int elapsed_time; // Elapsed time in microseconds
+    int execution_time; // Time taken to execute on CPU
+    char name[MAX_SYSCALL_NAME];
+    char spawn[MAX_COMMAND_NAME]; // Stores name of command being spawned (where relevant)
+    struct Device device;         // Set to NULL if no device is read/written to
+    int bytes;                    // Number of bytes being read/written
+    int sleep_time;               // Amount of sleep time (for sleep commands)
 };
 
-enum ProcessState
+struct Command
 {
-    READY,
-    RUNNING,
-    BLOCKED_IO,
-    BLOCKED_SLEEP,
-    BLOCKED_WAIT,
-    EXITED
-};
-
-struct Process
-{
-    int pid;                  // Process ID
-    enum ProcessState state;  // Current state of the process
-    int remainingTimeQuantum; // Remaining time quantum if in RUNNING state
-    int elapsedTime;          // Total elapsed time in microseconds
-    // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
-    // ...
+    char name[MAX_COMMAND_NAME];
     struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
-    struct Process *next; // Pointer to the next process in the queue
 };
+
+// enum ProcessState
+// {
+//     READY,
+//     RUNNING,
+//     BLOCKED_IO,
+//     BLOCKED_SLEEP,
+//     BLOCKED_WAIT,
+//     EXITED
+// };
+
+// struct Process
+// {
+//     int pid;                  // Process ID
+//     enum ProcessState state;  // Current state of the process
+//     int remainingTimeQuantum; // Remaining time quantum if in RUNNING state
+//     int elapsedTime;          // Total elapsed time in microseconds
+//     // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
+//     // ...
+//     struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
+//     struct Process *next; // Pointer to the next process in the queue
+// };
+
+struct Command commands[MAX_COMMANDS];
 
 void read_sysconfig(char argv0[], char filename[])
 {
@@ -112,32 +129,32 @@ void read_sysconfig(char argv0[], char filename[])
         }
         if (device < MAX_DEVICES)
         {
-            int i = strlen("device");                     // Sets character index to whitespace after "device" title
+            char *token = strtok(buffer, delimiters); // skips "device" name
+            // int i = strlen("device");                     // Sets character index to whitespace after "device" title
             for (int feature = 0; feature < 3; feature++) // Keeps track of what is being recorded (0 = name, 1 = readspeed, 2 = writespeed)
             {
-                char value[MAX_DEVICE_NAME] = {'\0'};
-                while (buffer[i] == '\t' || buffer[i] == ' ')
-                {
-                    i++;
-                }
-                while (buffer[i] != '\t' && buffer[i] != ' ')
-                {
-                    if (feature != 0 && buffer[i] == 'B') // Terminate character recording before "Bps" - so string is a number
-                    {
-                        i += 3; // Set character index to after "Bps"
-                        break;
-                    }
-                    sprintf(value, "%s%c", value, buffer[i]);
-                    i++;
-                }
+                token = strtok(NULL, delimiters);
+                int value = 0;
+                int j = 0;
                 switch (feature)
                 {
                 case 0:
-                    sprintf(tempdevices[device].name, "%s", value);
+                    sprintf(tempdevices[device].name, "%s", token);
                 case 1:
-                    tempdevices[device].readspeed = atoi(value);
+
+                    while (isdigit(token[j]))
+                    {
+                        value = value * 10 + (token[j] - '0');
+                        j++;
+                    }
+                    tempdevices[device].readspeed = value;
                 case 2:
-                    tempdevices[device].writespeed = atoi(value);
+                    while (isdigit(token[j]))
+                    {
+                        value = value * 10 + (token[j] - '0');
+                        j++;
+                    }
+                    tempdevices[device].writespeed = value;
                 }
             }
             device++;
@@ -193,115 +210,122 @@ void read_sysconfig(char argv0[], char filename[])
     // printf("%d", timequantum);
 }
 
-int stripDigit(char *input_string)
-{
-    int digits = 0;
-    for (int i = 0; input_string[i] != '\0'; i++)
-    {
-        if (isdigit(input_string[i]))
-        {
-            digits = digits * 10 + (input_string[i] - '0');
-        }
-    }
-    return digits;
-}
+// int stripDigit(char *input_string)
+// {
+//     int digits = 0;
+//     for (int i = 0; input_string[i] != '\0'; i++)
+//     {
+//         if (isdigit(input_string[i]))
+//         {
+//             digits = digits * 10 + (input_string[i] - '0');
+//         }
+//     }
+//     return digits;
+// }
 
 void read_commands(char argv0[], char filename[])
 {
-
-    printf("Commencing... ");
-    FILE *commands = fopen(filename, "r");
+    FILE *commandfile = fopen(filename, "r");
     // Check if file failed to read
-    if (commands == NULL)
+    if (commandfile == NULL)
     {
         exit(EXIT_FAILURE);
     }
 
-    // char buffer[MAX_LINE_LENGTH];
-    // char processName[MAX_COMMAND_NAME];
-    // struct Process myProcesses[MAX_RUNNING_PROCESSES];
-    // int numProcesses = 0;
-    // int numSystemCalls = 0;
-
-    char titles[MAX_COMMAND_NAME][100];
-
-    char *data_arrays[MAX_COMMAND_NAME][MAX_SYSCALLS_PER_PROCESS][100];
-
-    FILE *file = fopen("input.txt", "r");
-    if (file == NULL)
-    {
-        printf("Error opening file.\n");
-    }
-
-    char lines[100][100];
+    char lines[100][MAX_LINE_LENGTH];
     int line_count = 0;
 
-    char line[100];
-    while (fgets(line, sizeof(line), file))
+    char line[MAX_LINE_LENGTH];
+
+    // Reads entire file to lines[][] array
+    while (fgets(line, sizeof(line), commandfile))
     {
-        line[strcspn(line, "\n")] = '\0';
+        line[strcspn(line, "\n")] = '\0'; // Replaces new line character at end of line with string terminator character
         strcpy(lines[line_count], line);
         line_count++;
     }
 
-    int title_index = -1;
-    int process_index = 0;
-    int titleNext = 0;
+    int command_index = 0;
+    int syscall_index = 0;
     for (int i = 0; i < line_count; i++)
     {
-        strcpy(line, lines[i]);
-        if (strcmp(line, "#") == 0)
+        sprintf(line, "%s", lines[i]);
+        if (strcmp(line, "#") == 0) // Checks if we are reading a # line
         {
-            titleNext = 1;
             continue;
         }
-        else if (titleNext == 1 && line[0] != ' ')
+        else if (line[0] != ' ' && line[0] != '\t') // Checks that we are reading command line (not system call)
         {
-            title_index++;
-            strcpy(titles[title_index], line);
-            titleNext = 0;
-            process_index = 0;
+            sprintf(commands[command_index].name, "%s", line);
+            syscall_index = 0; // Sets the index of the system calls array to 0 (to start recording system calls)
+            command_index++;
         }
-        else
+        else // Reads the system call line and appropriately records in system call struct
         {
-            char *token = strtok(line, " ");
+            struct SystemCall currentsyscall = commands[command_index].systemCalls[syscall_index]; // Current system call being recorded
+            char *token = strtok(line, delimiters);
             int word_count = 0;
+            bool spawn = false; // Records if the current system calls/spawns another command
             while (token != NULL)
             {
-                strcpy(data_arrays[title_index][process_index][word_count], token);
-                token = strtok(NULL, " ");
+                if (word_count == 0) // Currently reading execution_time of the system call
+                {
+                    int j = 0;                // Index of current character (digit) being recorded
+                    while (isdigit(token[j])) // Records numbers (and stops recording before "usecs")
+                    {
+                        currentsyscall.execution_time = currentsyscall.execution_time * 10 + (token[j] - '0');
+                        j++;
+                    }
+                }
+                else if (word_count == 1) // Currently reading name of the system call
+                {
+                    sprintf(currentsyscall.name, "%s", token);
+                    spawn = (strcmp(token, "spawn") == 0); // Sets spawn variable to true if this system call spawns another process
+                }
+                else if (word_count == 2 && isdigit(token[0])) // Currently reading sleep time
+                {
+                    int j = 0;                // Index of current character (digit) being recorded
+                    while (isdigit(token[j])) // Records numbers (and stops recording before "usecs")
+                    {
+                        currentsyscall.sleep_time = currentsyscall.sleep_time * 10 + (token[j] - '0');
+                        j++;
+                    }
+                }
+                else if (word_count == 2 && !isdigit(token[0]) && spawn) // Currently reading name of new process being spawned
+                {
+                    for (int j = 0; j < MAX_COMMANDS; j++)
+                    {
+                        sprintf(currentsyscall.spawn, "%s", token);
+                    }
+                }
+                else if (word_count == 2 && !isdigit(token[0] && !spawn)) // Currently reading name of device being read/written to
+                {
+                    for (int j = 0; j < MAX_DEVICES; j++)
+                    {
+                        if (strcmp(devices[j].name, token) == 0)
+                        {
+                            currentsyscall.device = devices[j];
+                            break;
+                        }
+                    }
+                    token = strtok(NULL, delimiters); // Read number of bytes to be written/read
+                    int j = 0;                        // Index of current character (digit) being recorded
+                    while (isdigit(token[j]))         // Records numbers (and stops recording before "B")
+                    {
+                        currentsyscall.bytes = currentsyscall.bytes * 10 + (token[j] - '0');
+                        j++;
+                    }
+                }
+                token = strtok(NULL, delimiters);
                 word_count++;
             }
-            // data_arrays[title_index][process_index][0] = stripDigit(data_arrays[title_index][process_index][0]);
-            process_index++;
+            syscall_index++;
         }
     }
 
-    fclose(file);
-
-    printf("titles: ");
-    for (int i = 0; i <= title_index; i++)
-    {
-        printf("%c ", titles[i][0]);
-    }
-    printf("\n");
-
-    printf("data_arrays:\n");
-    for (int i = 0; i <= title_index; i++)
-    {
-        for (int j = 0; j < process_index; j++)
-        {
-            for (int k = 0; strcmp(data_arrays[i][j][k], "") != 0; k++)
-            {
-                printf("%s ", data_arrays[i][j][k]);
-                free(data_arrays[i][j][k]); // ??
-            }
-            printf("\n");
-        }
-    }
+    fclose(commandfile);
 }
 
-// systemCalls[0].name = SLEEP;
 //  ----------------------------------------------------------------------
 
 void execute_commands(void)
