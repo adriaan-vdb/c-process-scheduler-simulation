@@ -81,6 +81,11 @@ struct Command
     struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
 };
 
+struct Command blockedqueue[MAX_RUNNING_PROCESSES];           // Stores READY processes, currently waiting to run
+struct Command dataqueue[MAX_DEVICES][MAX_RUNNING_PROCESSES]; // Stores devices waiting for databus use, for each device (0 to 3)
+int blockedqueue_index = 0;
+int dataqueue_index[MAX_DEVICES] = {0};
+
 // enum ProcessState
 // {
 //     READY,
@@ -91,17 +96,14 @@ struct Command
 //     EXITED
 // };
 
-// struct Process
-// {
-//     int pid;                  // Process ID
-//     enum ProcessState state;  // Current state of the process
-//     int remainingTimeQuantum; // Remaining time quantum if in RUNNING state
-//     int elapsedTime;          // Total elapsed time in microseconds
-//     // Add more attributes as needed, e.g., IO device info, sleep duration, etc.
-//     // ...
-//     struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
-//     struct Process *next; // Pointer to the next process in the queue
-// };
+struct Process
+{
+    struct Command command;    // The command that the process is running
+    int syscall_index;         // The index of the system call that the process is currently executing
+    int remainingsyscall_time; // Remaining time of the current system call
+};
+
+int globaltime = 0; // Global counter of time in usecs
 
 struct Command commands[MAX_COMMANDS];
 
@@ -262,7 +264,7 @@ void read_commands(char argv0[], char filename[])
         }
         else // Reads the system call line and appropriately records in system call struct
         {
-            struct SystemCall currentsyscall = commands[command_index].systemCalls[syscall_index]; // Current system call being recorded
+            struct SystemCall *currentsyscall = &commands[command_index - 1].systemCalls[syscall_index]; // Current system call being recorded;
             char *token = strtok(line, delimiters);
             int word_count = 0;
             bool spawn = false; // Records if the current system calls/spawns another command
@@ -273,13 +275,13 @@ void read_commands(char argv0[], char filename[])
                     int j = 0;                // Index of current character (digit) being recorded
                     while (isdigit(token[j])) // Records numbers (and stops recording before "usecs")
                     {
-                        currentsyscall.execution_time = currentsyscall.execution_time * 10 + (token[j] - '0');
+                        currentsyscall->execution_time = currentsyscall->execution_time * 10 + (token[j] - '0');
                         j++;
                     }
                 }
                 else if (word_count == 1) // Currently reading name of the system call
                 {
-                    sprintf(currentsyscall.name, "%s", token);
+                    sprintf(currentsyscall->name, "%s", token);
                     spawn = (strcmp(token, "spawn") == 0); // Sets spawn variable to true if this system call spawns another process
                 }
                 else if (word_count == 2 && isdigit(token[0])) // Currently reading sleep time
@@ -287,7 +289,7 @@ void read_commands(char argv0[], char filename[])
                     int j = 0;                // Index of current character (digit) being recorded
                     while (isdigit(token[j])) // Records numbers (and stops recording before "usecs")
                     {
-                        currentsyscall.sleep_time = currentsyscall.sleep_time * 10 + (token[j] - '0');
+                        currentsyscall->sleep_time = currentsyscall->sleep_time * 10 + (token[j] - '0');
                         j++;
                     }
                 }
@@ -295,7 +297,7 @@ void read_commands(char argv0[], char filename[])
                 {
                     for (int j = 0; j < MAX_COMMANDS; j++)
                     {
-                        sprintf(currentsyscall.spawn, "%s", token);
+                        sprintf(currentsyscall->spawn, "%s", token);
                     }
                 }
                 else if (word_count == 2 && !isdigit(token[0] && !spawn)) // Currently reading name of device being read/written to
@@ -304,7 +306,7 @@ void read_commands(char argv0[], char filename[])
                     {
                         if (strcmp(devices[j].name, token) == 0)
                         {
-                            currentsyscall.device = devices[j];
+                            currentsyscall->device = devices[j];
                             break;
                         }
                     }
@@ -312,7 +314,7 @@ void read_commands(char argv0[], char filename[])
                     int j = 0;                        // Index of current character (digit) being recorded
                     while (isdigit(token[j]))         // Records numbers (and stops recording before "B")
                     {
-                        currentsyscall.bytes = currentsyscall.bytes * 10 + (token[j] - '0');
+                        currentsyscall->bytes = currentsyscall->bytes * 10 + (token[j] - '0');
                         j++;
                     }
                 }
@@ -322,7 +324,6 @@ void read_commands(char argv0[], char filename[])
             syscall_index++;
         }
     }
-
     fclose(commandfile);
 }
 
@@ -330,6 +331,26 @@ void read_commands(char argv0[], char filename[])
 
 void execute_commands(void)
 {
+    // Initialises process and commands by adding them to the appropriate queue
+    for (int i = 0; i < MAX_COMMANDS && commands[i].name != NULL; i++)
+    {
+        struct SystemCall current_syscall = commands[i].systemCalls[0];
+        if (strcmp(current_syscall.name, "read") == 0 || strcmp(current_syscall.name, "write") == 0) // Process needs to be on dataqueue
+        {
+            int j = 0;
+            while (j < MAX_DEVICES && devices[j].name != current_syscall.device.name)
+            { // Finds out the index (j) of the device
+                j++;
+            }
+            dataqueue[j][dataqueue_index[j]] = commands[i];
+            dataqueue_index[j]++;
+        }
+        else // Process needs to be on blockqueue
+        {
+            blockedqueue[blockedqueue_index] = commands[i];
+            blockedqueue_index++;
+        }
+    }
 }
 
 //  ----------------------------------------------------------------------
