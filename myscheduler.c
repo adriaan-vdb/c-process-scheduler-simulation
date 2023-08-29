@@ -334,11 +334,11 @@ void execute_commands(void)
     // Initialises process and commands by adding them to the appropriate queue
     for (int i = 0; i < MAX_COMMANDS && commands[i].name != NULL; i++)
     {
-        struct SystemCall current_syscall = commands[i].systemCalls[0];
-        if (strcmp(current_syscall.name, "read") == 0 || strcmp(current_syscall.name, "write") == 0) // Process needs to be on dataqueue
+        struct SystemCall *current_syscall = &commands[i].systemCalls[0];
+        if (strcmp(current_syscall->name, "read") == 0 || strcmp(current_syscall->name, "write") == 0) // Process needs to be on dataqueue
         {
             int j = 0;
-            while (j < MAX_DEVICES && devices[j].name != current_syscall.device.name)
+            while (j < MAX_DEVICES && strcmp(devices[j].name, current_syscall->device.name) != 0)
             { // Finds out the index (j) of the device
                 j++;
             }
