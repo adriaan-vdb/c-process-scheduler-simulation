@@ -201,6 +201,8 @@ void read_sysconfig(char argv0[], char filename[])
         tempdevices[minreadspeed].readspeed = -1;
     }
 
+    fclose(sysconfig);
+
     // for (int i = 0; i < 4; i++)
     // {
     //     printf("%s ", devices[i].name);
@@ -322,7 +324,6 @@ void read_commands(char argv0[], char filename[])
             syscall_index++;
         }
     }
-
     fclose(commandfile);
 }
 
