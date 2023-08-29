@@ -282,7 +282,7 @@ void read_commands(char argv0[], char filename[])
                     sprintf(currentsyscall.name, "%s", token);
                     spawn = (strcmp(token, "spawn") == 0); // Sets spawn variable to true if this system call spawns another process
                 }
-                else if (word_count == 2 && isdigit(token[0])) // Currently reading sleep time
+                else if (word_count == 2 && isdigit(token[0]) && !spawn) // Currently reading sleep time
                 {
                     int j = 0;                // Index of current character (digit) being recorded
                     while (isdigit(token[j])) // Records numbers (and stops recording before "usecs")
