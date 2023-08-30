@@ -1,0 +1,21 @@
+There are 3 main queues
+1. Ready Queue - processes waiting to run on the CPU
+2. Data Queue - processes waiting to run on the databus
+    - split into 4 queues (one for each available device!)
+3. Blocked Queue - processes sleeping/waiting for a spawned process to finish (only when wait called after spawn)
+    - not really a queue... more an array!
+    - processes will exit the blocked queue (or array) when they are done waiting or sleeping
+
+We need a global clock that increments to the next event i.e. we need to keep track of events that are occuring (and when)
+1. CPU event (when a process gets kicked off or exits the CPU)
+    - triggers a new process going onto the CPU
+    - NOTE: state transitions are done on the CPU
+2. Data event (when a process exits the data bus)
+    - triggers a new process going onto the data bus
+3. Wait event (when a process needs to stop waiting or sleeping, and move from BLOCKED -> READY/DATABUS)
+    - process will sleep for a given amount of time
+    - process will wait for another process to finish (not sure how to implement this... the finishing of a process should coincide with an event i.e. a block event, data event etc. - so we can keep track of process and when it finishes)
+    - for waiting currently have child having pointer to parent, so it can edit parent state to let it know it finished - but might be able to use pointer to remove the array element from the blocked queue and then create a copy into the running queue?
+    - IN CONCLUSION... wait event = sleep time of an element (does not include the waiting of a process - this is done separately)
+
+CREATE TRANSITION AS A NEW COMMAND WITH NAME "transition" and appropriate event_time etc.

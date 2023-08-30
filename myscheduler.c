@@ -69,7 +69,7 @@ struct SystemCall
     // int elapsed_time; // Elapsed time in microseconds
     int execution_time; // Time taken to execute on CPU
     char name[MAX_SYSCALL_NAME];
-    char spawn[MAX_COMMAND_NAME]; // Stores name of command being spawned (where relevant)
+    char spawn[MAX_COMMAND_NAME]; // Command referred to when spawn is called
     struct Device device;         // Set to NULL if no device is read/written to
     int bytes;                    // Number of bytes being read/written
     int sleep_time;               // Amount of sleep time (for sleep commands)
@@ -79,12 +79,25 @@ struct Command
 {
     char name[MAX_COMMAND_NAME];
     struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
+    struct Process *spawn; // Stores pointer to parent (to tell parent when "wait" is over, where necessary)
 };
 
-struct Command blockedqueue[MAX_RUNNING_PROCESSES];           // Stores READY processes, currently waiting to run
-struct Command dataqueue[MAX_DEVICES][MAX_RUNNING_PROCESSES]; // Stores devices waiting for databus use, for each device (0 to 3)
-int blockedqueue_index = 0;
-int dataqueue_index[MAX_DEVICES] = {0};
+struct Process
+{
+    struct Command command; // Stores a copy of the command and the system calls that the process is running
+    int syscall_index;      // The index of the system call that the process is currently executing
+    bool wait;              // Helps to keep track of when child process is done
+    int event_time;         // Amount of time left until getting removed from/leaving CPU, blocked queue or databus
+    int remaining_cpu_time; // Amount of time left on CPU (used if getting kicked off CPU)
+};
+
+struct Process readyqueue[MAX_RUNNING_PROCESSES];             // Stores READY processes, currently waiting to run
+struct Process dataqueue[MAX_DEVICES][MAX_RUNNING_PROCESSES]; // Stores devices waiting for databus use, for each device (0 to 3)
+struct Process blockedqueue[MAX_RUNNING_PROCESSES];           // Stores devices waiting for child process, or sleeping
+int readyqueue_index = 0;                                     // Current index of end of readyqueue
+int dataqueue_index[MAX_DEVICES] = {0};                       // Current index of end of queues of each device
+int blockedqueue_index = 0;                                   // Current index of end of blockedqueue
+int cputransitiontime = 0;                                    // Will be non-zero when CPU is performing state transition
 
 // enum ProcessState
 // {
@@ -96,16 +109,16 @@ int dataqueue_index[MAX_DEVICES] = {0};
 //     EXITED
 // };
 
-struct Process
-{
-    struct Command command;    // The command that the process is running
-    int syscall_index;         // The index of the system call that the process is currently executing
-    int remainingsyscall_time; // Remaining time of the current system call
-};
-
 int globaltime = 0; // Global counter of time in usecs
 
 struct Command commands[MAX_COMMANDS];
+
+struct Event
+{
+    int clock_time;
+    char *event_type; // Can be "data", "blocked", "cpu"
+    int index;        // Index of process (related to the event) on data or blocked queue
+};
 
 void read_sysconfig(char argv0[], char filename[])
 {
@@ -295,10 +308,7 @@ void read_commands(char argv0[], char filename[])
                 }
                 else if (word_count == 2 && !isdigit(token[0]) && spawn) // Currently reading name of new process being spawned
                 {
-                    for (int j = 0; j < MAX_COMMANDS; j++)
-                    {
-                        sprintf(currentsyscall->spawn, "%s", token);
-                    }
+                    sprintf(currentsyscall->spawn, "%s", token);
                 }
                 else if (word_count == 2 && !isdigit(token[0] && !spawn)) // Currently reading name of device being read/written to
                 {
@@ -329,26 +339,113 @@ void read_commands(char argv0[], char filename[])
 
 //  ----------------------------------------------------------------------
 
+bool isEmpty()
+{
+    return ((readyqueue_index == 0) && (blockedqueue_index == 0) && (dataqueue_index[0] == 0) && (dataqueue_index[1] == 0) && (dataqueue_index[2] == 0) && (dataqueue_index[3] == 0));
+}
+
+struct Event next_event()
+{
+    struct Event output;
+
+    // Getting the minimum blocked queue time
+    int blocked_event[2] = {-1, -1}; // Stores the clock value and the index of the blocked queue that is first to be released
+    for (int i = 0; i < MAX_RUNNING_PROCESSES; i++)
+    {
+        if (strcmp(blockedqueue[i].command.name, "") == 0)
+        {
+            break;
+        }
+        else if (blocked_event[0] == -1 || blockedqueue[i].event_time < blocked_event[0])
+        {
+            blocked_event[0] = blockedqueue[i].event_time;
+            blocked_event[1] = i;
+        }
+    }
+
+    // Getting the minimum databus time
+    int data_event[2] = {-1, -1}; // Stores the clock value and the index of the device that is being used (and will finish first)
+    for (int i = 0; i < MAX_DEVICES; i++)
+    {
+        if (strcmp(dataqueue[i]->command.name, "") == 0)
+        {
+            continue;
+        }
+        else if (data_event[0] == -1 || dataqueue[i]->event_time < data_event[0])
+        {
+            data_event[0] = dataqueue[i]->event_time;
+            data_event[1] = i;
+        }
+    }
+
+    if (blocked_event[0] != -1 && (blocked_event[0] < data_event[0] || blocked_event[0] < readyqueue[0].event_time)) // Blocked is min
+    {
+        output.clock_time = blocked_event[0];
+        output.event_type = "blocked";
+        output.index = blocked_event[1];
+    }
+    else if (data_event[0] != -1 && (data_event[0] < readyqueue[0].event_time)) // Data is min
+    {
+        output.clock_time = data_event[0];
+        output.event_type = "data";
+        output.index = data_event[1];
+    }
+    else // Ready is min
+    {
+        output.clock_time = readyqueue[0].event_time;
+        output.event_type = "cpu";
+        output.index = -1;
+    }
+    return output;
+}
+
+void dequeue(struct Process *array, int *array_index) // Removes the first element of an array and moves remaining elements one index forward
+{
+    for (int i = 1; i < *array_index; i++)
+    {
+        array[i - 1] = array[i];
+    }
+    sprintf(array[*array_index - 1].command.name, "%s", ""); // Essentially "clears" the last element of the array
+    --*array_index;                                          // Increments the value of the index (rather than incrementing the pointer address)
+}
+
+void fronttoback(struct Process *array, int *array_index)
+{
+    struct Process temp = array[0];
+    dequeue(array, array_index);
+    array[*array_index] = temp;
+    ++*array_index; // Increments the value of the index (rather than incrementing the pointer address)
+}
+
 void execute_commands(void)
 {
-    // Initialises process and commands by adding them to the appropriate queue
-    for (int i = 0; i < MAX_COMMANDS && commands[i].name != NULL; i++)
-    {
-        struct SystemCall *current_syscall = &commands[i].systemCalls[0];
-        if (strcmp(current_syscall->name, "read") == 0 || strcmp(current_syscall->name, "write") == 0) // Process needs to be on dataqueue
+    // Initialises first process on command file
+    readyqueue[0].command = commands[0];
+    readyqueue[0].syscall_index = 0;
+    readyqueue[0].event_time = fmin(timequantum, commands[0].systemCalls[0].execution_time);
+    readyqueue[0].remaining_cpu_time = commands[0].systemCalls[0].execution_time - readyqueue[0].event_time;
+    readyqueue_index++;
+    globaltime += TIME_CONTEXT_SWITCH;
+
+    while (!isEmpty())
+    { /*
+         1. increment timer to get to the next closest event (minimum time left of blocked queue, data queue and ready queue)
+         2. check the returned event to see what needs to be done (for each of the following cases)
+            a. cpu -> conduct appropriate system call and move new system call onto cpu
+            b. blocked -> move process back to ready queue to execute next system call (and add transition time to execution time???)
+            c. data -> move process back to ready queue to execute next system call (and add transition time to execution time???)
+            NOTE: for each of these, if the process has the spawn field set to the parent, tell parent that the process is finished
+     */
+        struct Event next = next_event();
+        globaltime = next.clock_time;
+        if (strcmp(next.event_type, "cpu") == 0) // event is a process coming off the cpu
         {
-            int j = 0;
-            while (j < MAX_DEVICES && strcmp(devices[j].name, current_syscall->device.name) != 0)
-            { // Finds out the index (j) of the device
-                j++;
-            }
-            dataqueue[j][dataqueue_index[j]] = commands[i];
-            dataqueue_index[j]++;
         }
-        else // Process needs to be on blockqueue
+        else if (strcmp(next.event_type, "data")) // event is a process coming off the databus
         {
-            blockedqueue[blockedqueue_index] = commands[i];
-            blockedqueue_index++;
+        }
+        else if (strcmp(next.event_type, "blocked")) // event is a process coming off the blocked queue
+        {
         }
     }
 }
@@ -371,7 +468,7 @@ int main(int argc, char *argv[])
     read_commands(argv[0], argv[2]);
 
     //  EXECUTE COMMANDS, STARTING AT FIRST IN command-file, UNTIL NONE REMAIN
-    execute_commands();
+    // execute_commands();
 
     //  PRINT THE PROGRAM'S RESULTS
     printf("measurements  %i  %i\n", 0, 0);
