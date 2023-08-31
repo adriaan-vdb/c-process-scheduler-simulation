@@ -67,7 +67,8 @@ struct Device devices[MAX_DEVICES];
 struct SystemCall
 {
     // int elapsed_time; // Elapsed time in microseconds
-    int execution_time; // Time taken to execute on CPU
+    int execution_time;            // Time taken to execute on CPU
+    int cumulative_execution_time; // Time given on command file
     char name[MAX_SYSCALL_NAME];
     char spawn[MAX_COMMAND_NAME]; // Command referred to when spawn is called
     struct Device device;         // Set to NULL if no device is read/written to
@@ -288,8 +289,17 @@ void read_commands(char argv0[], char filename[])
                     int j = 0;                // Index of current character (digit) being recorded
                     while (isdigit(token[j])) // Records numbers (and stops recording before "usecs")
                     {
-                        currentsyscall->execution_time = currentsyscall->execution_time * 10 + (token[j] - '0');
+                        currentsyscall->cumulative_execution_time = currentsyscall->cumulative_execution_time * 10 + (token[j] - '0');
                         j++;
+                    }
+                    // Sets execution time to difference between current and previous cumulative execution times
+                    if (syscall_index == 0)
+                    {
+                        currentsyscall->execution_time = currentsyscall->cumulative_execution_time;
+                    }
+                    else
+                    {
+                        currentsyscall->execution_time = currentsyscall->cumulative_execution_time - commands[command_index - 1].systemCalls[syscall_index - 1].cumulative_execution_time;
                     }
                 }
                 else if (word_count == 1) // Currently reading name of the system call
@@ -440,6 +450,53 @@ void execute_commands(void)
         globaltime = next.clock_time;
         if (strcmp(next.event_type, "cpu") == 0) // event is a process coming off the cpu
         {
+            /*
+            WHAT NEEDS TO BE DONE:
+            1. Check the head of the readyqueue, if the syscall execution time was completed or the timequantum expired
+            2. If timequantum expired, call fronttoback()
+            3. If syscall execution time completed, view command name to see what to do (what queue to use or to exit)
+            4. Calculate and occupy CPU for transition time
+            */
+            if (readyqueue[0].remaining_cpu_time == 0) // Process has finished executing
+            {
+                if (strcmp(readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].name, "exit")) // If syscall is exit
+                {
+                    dequeue(readyqueue, &readyqueue_index);
+                }
+                else if (strcmp(readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].name, "sleep"))
+                {
+                    // Do something
+                }
+                else if (strcmp(readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].name, "wait"))
+                {
+                    // Do something
+                }
+                else if (strcmp(readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].name, "spawn"))
+                {
+                    // Do something
+                }
+                else if (strcmp(readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].name, "read"))
+                {
+                    // Do something
+                }
+                else if (strcmp(readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].name, "write"))
+                {
+                    // Do something
+                }
+                // NEED TO INCREMENT SYSCALL INDEX!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            }
+            else // Time quantum expired, process needs to be back on ready queue
+            {
+                fronttoback(readyqueue, &readyqueue_index);
+                if (readyqueue[0].remaining_cpu_time == 0) // Check if syscall is on CPU for first time
+                {
+                    // Initialises remaining CPU time and the event time of the process
+                    readyqueue[0].remaining_cpu_time = readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].execution_time - fmin(readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].execution_time, timequantum);
+                    readyqueue[0].event_time = globaltime + fmin(readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].execution_time, timequantum);
+                }
+                readyqueue[0].event_time = globaltime + readyqueue[0].command.systemCalls[readyqueue[0].syscall_index].execution_time;
+            }
+            dequeue(readyqueue, &readyqueue_index);
         }
         else if (strcmp(next.event_type, "data")) // event is a process coming off the databus
         {

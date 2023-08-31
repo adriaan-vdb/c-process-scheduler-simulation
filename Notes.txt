@@ -13,3 +13,5 @@
 5. Execution time of a system call is the total running execution time of the process on the CPU
 6. The CPU performs state transitions (state transitions will take time on the CPU)
 7. Sleeping starts and doesn't care about what is happening on CPU (this includes it's own state transition from RUNNING -> BLOCKED)
+8. Reading of command file records the execution time (as well as cumulative time) taken to do a syscall
+9. Need to initialise integer value remaining_cpu_time to 0!!!!
