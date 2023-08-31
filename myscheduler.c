@@ -47,7 +47,7 @@ int timequantum = DEFAULT_TIME_QUANTUM;
 
 struct Device
 {
-    char name[MAX_DEVICE_NAME];
+    char name[MAX_DEVICE_NAME + 1];
     int readspeed;
     int writespeed;
 };
@@ -69,16 +69,16 @@ struct SystemCall
     // int elapsed_time; // Elapsed time in microseconds
     int execution_time;            // Time taken to execute on CPU
     int cumulative_execution_time; // Time given on command file
-    char name[MAX_SYSCALL_NAME];
-    char spawn[MAX_COMMAND_NAME]; // Command referred to when spawn is called
-    struct Device device;         // Set to NULL if no device is read/written to
-    int bytes;                    // Number of bytes being read/written
-    int sleep_time;               // Amount of sleep time (for sleep commands)
+    char name[MAX_SYSCALL_NAME + 1];
+    char spawn[MAX_COMMAND_NAME + 1]; // Command referred to when spawn is called
+    struct Device device;             // Set to NULL if no device is read/written to
+    int bytes;                        // Number of bytes being read/written
+    int sleep_time;                   // Amount of sleep time (for sleep commands)
 };
 
 struct Command
 {
-    char name[MAX_COMMAND_NAME];
+    char name[MAX_COMMAND_NAME + 1];
     struct SystemCall systemCalls[MAX_SYSCALLS_PER_PROCESS];
     struct Process *spawn; // Stores pointer to parent (to tell parent when "wait" is over, where necessary)
 };
@@ -177,7 +177,7 @@ void read_sysconfig(char argv0[], char filename[])
         }
         else
         {
-            char value[MAX_DEVICE_NAME] = {'\0'};
+            char value[MAX_DEVICE_NAME + 1] = {'\0'};
             int i = strlen("timequantum"); // Sets character index to whitespace after "timequantum" title
             while (buffer[i] == '\t' || buffer[i] == ' ')
             {
@@ -527,7 +527,7 @@ int main(int argc, char *argv[])
     read_commands(argv[0], argv[2]);
 
     //  EXECUTE COMMANDS, STARTING AT FIRST IN command-file, UNTIL NONE REMAIN
-    // execute_commands();
+    execute_commands();
 
     //  PRINT THE PROGRAM'S RESULTS
     printf("measurements  %i  %i\n", 0, 0);
