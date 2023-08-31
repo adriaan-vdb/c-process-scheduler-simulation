@@ -1,0 +1,4 @@
+#
+shortsleep
+    50usecs    exit
+#

@@ -1,15 +1,17 @@
 --> Questions:
 1. Do we need Fork to create new processes when each command is called?
-2. 
+2. Does a process continue making system calls until the time quantum is expired?
 
 
 
 
 --> Notes:
 1. I reckon we share a onenote page so we can plan our system on "Whiteboard"
-2. 
-
-
-
-
-
+2. Only the first command on the command file is run (depend on spawns for the rest)
+3. Every time a process needs to use the databus, it takes 20usecs before commencing
+4. For calculating time on databus, need to round up to the highest integer (e.g. 14.2usec -> 15usecs)
+5. Execution time of a system call is the total running execution time of the process on the CPU
+6. The CPU performs state transitions (state transitions will take time on the CPU)
+7. Sleeping starts and doesn't care about what is happening on CPU (this includes it's own state transition from RUNNING -> BLOCKED)
+8. Reading of command file records the execution time (as well as cumulative time) taken to do a syscall
+9. Need to initialise integer value remaining_cpu_time to 0!!!!
