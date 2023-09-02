@@ -19,3 +19,57 @@ We need a global clock that increments to the next event i.e. we need to keep tr
     - IN CONCLUSION... wait event = sleep time of an element (does not include the waiting of a process - this is done separately)
 
 CREATE TRANSITION AS A NEW COMMAND WITH NAME "transition" and appropriate event_time etc.
+
+
+
+
+
+Adriaan Questions:
+
+Dunno if I'm understanding right, but for the wait event (3.), could we instead:
+
+3. Store waiting processes in an array, and use a function that decrements a wait time parameter as the global clock ticks down, 
+and once the wait is over (parameter is 0) then we just add the event to whatever ready/databus queue we need
+
+.. or is that what ur already doing?
+
+
+I got chatGPT to do an example framework for this (Just for referece so i don't waste coding somehting that's silly lol)
+
+// Define a data structure to represent a waiting process
+typedef struct {
+    Process* process;
+    int waitTime;
+} WaitingProcess;
+
+// Function to handle waiting processes (important bit)
+void handleWaitingProcesses(WaitingProcess waitingProcesses[], int numWaitingProcesses, Queue* readyQueue) {
+    for (int i = 0; i < numWaitingProcesses; i++) {
+        if (waitingProcesses[i].waitTime > 0) {
+            waitingProcesses[i].waitTime--;
+            if (waitingProcesses[i].waitTime == 0) {
+                enqueue(readyQueue, waitingProcesses[i].process);
+                // Remove the process from the waiting list (optional)
+                // You can also implement this as a dynamic data structure.
+            }
+        }
+    }
+}
+
+// Simulation loop (obv bit)
+void simulateMyscheduler(const char* sysconfigFile, const char* commandsFile) {
+    // Initialize data structures and queues
+
+    // Read sysconfig and commands
+
+    // Simulation loop
+    while (/* Check exit conditions */) {
+        // Handle waiting processes
+        handleWaitingProcesses(waitingProcesses, numWaitingProcesses, readyQueue);
+
+        // Check for and handle other events (CPU events, data events, etc.)
+
+        // Increment the global clock
+        globalClock++;
+    }
+}
