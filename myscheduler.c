@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <stdbool.h>
+
 //  you may need other standard header files
 
 //  CITS2002 Project 1 2023
@@ -12,6 +13,7 @@
 
 //  myscheduler (v1.0)
 //  Compile with:  cc -std=c11 -Wall -Werror -o myscheduler myscheduler.c
+//  RUN: ./myscheduler sysconfig-file command-file
 
 //  THESE CONSTANTS DEFINE THE MAXIMUM SIZE OF sysconfig AND command DETAILS
 //  THAT YOUR PROGRAM NEEDS TO SUPPORT.  YOU'LL REQUIRE THESE //  CONSTANTS
@@ -527,7 +529,7 @@ int main(int argc, char *argv[])
     read_commands(argv[0], argv[2]);
 
     //  EXECUTE COMMANDS, STARTING AT FIRST IN command-file, UNTIL NONE REMAIN
-    execute_commands();
+    // execute_commands();
 
     //  PRINT THE PROGRAM'S RESULTS
     printf("measurements  %i  %i\n", 0, 0);
@@ -538,3 +540,4 @@ int main(int argc, char *argv[])
 //  vim: ts=8 sw=4
 
 // Solution draft:
+
